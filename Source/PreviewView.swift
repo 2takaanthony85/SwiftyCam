@@ -51,15 +51,21 @@ class PreviewView: UIView {
         super.init(coder: aDecoder)
     }
     
+    //videoのプレビュー画面がどのスタイルで表示されるか指定
+    //AVLayerVideoGravity
+    //AVCaptureVideoPreviewLayer
+    //CALayerのサブクラスであり、Core Animation Layerである
+    //実際にカメラ、ビデオに使用されるレンズ越しの映像を表示する部分
+    //AVLayerVideoGravityはAVCaptureVideoPreviewLayerのLayerの設定を決めるもの
 	var videoPreviewLayer: AVCaptureVideoPreviewLayer {
         let previewlayer = layer as! AVCaptureVideoPreviewLayer
         switch gravity {
         case .resize:
-            previewlayer.videoGravity = AVLayerVideoGravityResize
+            previewlayer.videoGravity = AVLayerVideoGravity.resize
         case .resizeAspect:
-            previewlayer.videoGravity = AVLayerVideoGravityResizeAspect
+            previewlayer.videoGravity = AVLayerVideoGravity.resizeAspect
         case .resizeAspectFill:
-            previewlayer.videoGravity = AVLayerVideoGravityResizeAspectFill
+            previewlayer.videoGravity = AVLayerVideoGravity.resizeAspectFill
         }
 		return previewlayer
 	}

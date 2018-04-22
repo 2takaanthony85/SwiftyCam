@@ -258,17 +258,26 @@ open class SwiftyCamViewController: UIViewController {
         previewLayer = PreviewView(frame: view.frame, videoGravity: videoGravity)
         previewLayer.center = view.center
         view.addSubview(previewLayer)
+        
+        //sendSubViewは何のためにやっているのか。。。
         view.sendSubview(toBack: previewLayer)
 
 		// Add Gesture Recognizers
         
         addGestureRecognizers()
-
+        
+        /// Current Capture Session
+        //public let session                           = AVCaptureSession()
 		previewLayer.session = session
 
+        
+        /*
+         appがcameraを使用していいかの許可を持っているかの権限を示す
+         
+         もし、.notDeterminedであればその後のviewDidAppearで許可するアラートを表示し、camera機能を使用できるように許可することを促す
+         */
 		// Test authorization status for Camera and Micophone
-
-		switch AVCaptureDevice.authorizationStatus(forMediaType: AVMediaTypeVideo){
+		switch AVCaptureDevice.authorizationStatus(for: AVMediaType.video){
 		case .authorized:
 
 			// already authorized
@@ -277,7 +286,7 @@ open class SwiftyCamViewController: UIViewController {
 
 			// not yet determined
 			sessionQueue.suspend()
-			AVCaptureDevice.requestAccess(forMediaType: AVMediaTypeVideo, completionHandler: { [unowned self] granted in
+			AVCaptureDevice.requestAccess(for: AVMediaType.video, completionHandler: { [unowned self] granted in
 				if !granted {
 					self.setupResult = .notAuthorized
 				}
@@ -289,6 +298,11 @@ open class SwiftyCamViewController: UIViewController {
 			setupResult = .notAuthorized
 		}
 		sessionQueue.async { [unowned self] in
+            
+            /*
+             
+             
+             */
 			self.configureSession()
 		}
 	}
@@ -315,6 +329,9 @@ open class SwiftyCamViewController: UIViewController {
             
             let previewLayerConnection : AVCaptureConnection = connection
             
+            /*
+             カメラの向きにとかに関わることらしいが、わからん。。。。
+             */
             if previewLayerConnection.isVideoOrientationSupported {
                 
                 switch (orientation) {
@@ -359,9 +376,36 @@ open class SwiftyCamViewController: UIViewController {
 
 		setBackgroundAudioPreference()
 
+        /*
+         /**
+         
+         Result from the AVCaptureSession Setup
+         
+         - success: success
+         - notAuthorized: User denied access to Camera of Microphone
+         - configurationFailed: Unknown error
+         */
+         
+         fileprivate enum SessionSetupResult {
+         case success
+         case notAuthorized
+         case configurationFailed
+         }
+         
+         /// Variable to store result of capture session setup
+         
+         fileprivate var setupResult                  = SessionSetupResult.success
+         */
 		sessionQueue.async {
 			switch self.setupResult {
 			case .success:
+                
+                /*
+                 startRunningで入力から出力までのデータの流れの接続を開始している
+                 ここで疑問
+                 ・入力、出力の設定はviewDidLoadのconfigurationSettings()が呼び出され、セットされている
+                 */
+                
 				// Begin Session
 				self.session.startRunning()
 				self.isSessionRunning = self.session.isRunning
@@ -372,6 +416,10 @@ open class SwiftyCamViewController: UIViewController {
                 }
                 
 			case .notAuthorized:
+                /*
+                 カメラの使用をユーザーが許可していないとき
+                 アラートを表示し「設定」よりカメラの使用を許可するように促す
+                 */
 				// Prompt to App Settings
 				self.promptToAppSettings()
 			case .configurationFailed:
@@ -421,6 +469,9 @@ open class SwiftyCamViewController: UIViewController {
 
 	public func takePhoto() {
 
+        /*
+         configurationSettings()でvideoDeviceは設定されている
+         */
 		guard let device = videoDevice else {
 			return
 		}
@@ -486,7 +537,7 @@ open class SwiftyCamViewController: UIViewController {
 				}
 
 				// Update the orientation on the movie file output video connection before starting recording.
-				let movieFileOutputConnection = self.movieFileOutput?.connection(withMediaType: AVMediaTypeVideo)
+				let movieFileOutputConnection = self.movieFileOutput?.connection(with: AVMediaType.video)
 
 
 				//flip video output if front facing camera is selected
@@ -499,7 +550,7 @@ open class SwiftyCamViewController: UIViewController {
 				// Start recording to a temporary file.
 				let outputFileName = UUID().uuidString
 				let outputFilePath = (NSTemporaryDirectory() as NSString).appendingPathComponent((outputFileName as NSString).appendingPathExtension("mov")!)
-				movieFileOutput.startRecording(toOutputFileURL: URL(fileURLWithPath: outputFilePath), recordingDelegate: self)
+				movieFileOutput.startRecording(to: URL(fileURLWithPath: outputFilePath), recordingDelegate: self)
 				self.isVideoRecording = true
 				DispatchQueue.main.async {
 					self.cameraDelegate?.swiftyCam(self, didBeginRecordingVideo: self.currentCamera)
@@ -574,7 +625,7 @@ open class SwiftyCamViewController: UIViewController {
 			// remove and re-add inputs and outputs
 
 			for input in self.session.inputs {
-				self.session.removeInput(input as! AVCaptureInput)
+				self.session.removeInput(input )
 			}
 
 			self.addInputs()
@@ -598,6 +649,11 @@ open class SwiftyCamViewController: UIViewController {
 			return
 		}
 
+        /*
+         app起動時にしか利用されないから
+         currentCameraとdefaultcamera2つのプロパティを定義している
+         （currentCameraはその後も再利用される　→ switchcamera()など　フロントカメラかバックカメラをどっちを利用するか）
+         */
 		// Set default camera
 
 		currentCamera = defaultCamera
@@ -631,12 +687,12 @@ open class SwiftyCamViewController: UIViewController {
 
 	fileprivate func configureVideoPreset() {
 		if currentCamera == .front {
-			session.sessionPreset = videoInputPresetFromVideoQuality(quality: .high)
+			session.sessionPreset = AVCaptureSession.Preset(rawValue: videoInputPresetFromVideoQuality(quality: .high))
 		} else {
-			if session.canSetSessionPreset(videoInputPresetFromVideoQuality(quality: videoQuality)) {
-				session.sessionPreset = videoInputPresetFromVideoQuality(quality: videoQuality)
+			if session.canSetSessionPreset(AVCaptureSession.Preset(rawValue: videoInputPresetFromVideoQuality(quality: videoQuality))) {
+				session.sessionPreset = AVCaptureSession.Preset(rawValue: videoInputPresetFromVideoQuality(quality: videoQuality))
 			} else {
-				session.sessionPreset = videoInputPresetFromVideoQuality(quality: .high)
+				session.sessionPreset = AVCaptureSession.Preset(rawValue: videoInputPresetFromVideoQuality(quality: .high))
 			}
 		}
 	}
@@ -646,9 +702,9 @@ open class SwiftyCamViewController: UIViewController {
 	fileprivate func addVideoInput() {
 		switch currentCamera {
 		case .front:
-			videoDevice = SwiftyCamViewController.deviceWithMediaType(AVMediaTypeVideo, preferringPosition: .front)
+			videoDevice = SwiftyCamViewController.deviceWithMediaType(AVMediaType.video.rawValue, preferringPosition: .front)
 		case .rear:
-			videoDevice = SwiftyCamViewController.deviceWithMediaType(AVMediaTypeVideo, preferringPosition: .back)
+			videoDevice = SwiftyCamViewController.deviceWithMediaType(AVMediaType.video.rawValue, preferringPosition: .back)
 		}
 
 		if let device = videoDevice {
@@ -680,14 +736,14 @@ open class SwiftyCamViewController: UIViewController {
 		}
 
 		do {
-			let videoDeviceInput = try AVCaptureDeviceInput(device: videoDevice)
+			let videoDeviceInput = try AVCaptureDeviceInput(device: videoDevice!)
 
 			if session.canAddInput(videoDeviceInput) {
 				session.addInput(videoDeviceInput)
 				self.videoDeviceInput = videoDeviceInput
 			} else {
 				print("[SwiftyCam]: Could not add video device input to the session")
-				print(session.canSetSessionPreset(videoInputPresetFromVideoQuality(quality: videoQuality)))
+				print(session.canSetSessionPreset(AVCaptureSession.Preset(rawValue: videoInputPresetFromVideoQuality(quality: videoQuality))))
 				setupResult = .configurationFailed
 				session.commitConfiguration()
 				return
@@ -706,8 +762,8 @@ open class SwiftyCamViewController: UIViewController {
             return
         }
 		do {
-			let audioDevice = AVCaptureDevice.defaultDevice(withMediaType: AVMediaTypeAudio)
-			let audioDeviceInput = try AVCaptureDeviceInput(device: audioDevice)
+			let audioDevice = AVCaptureDevice.default(for: AVMediaType.audio)
+			let audioDeviceInput = try AVCaptureDeviceInput(device: audioDevice!)
 
 			if session.canAddInput(audioDeviceInput) {
 				session.addInput(audioDeviceInput)
@@ -728,7 +784,7 @@ open class SwiftyCamViewController: UIViewController {
 
 		if self.session.canAddOutput(movieFileOutput) {
 			self.session.addOutput(movieFileOutput)
-			if let connection = movieFileOutput.connection(withMediaType: AVMediaTypeVideo) {
+			if let connection = movieFileOutput.connection(with: AVMediaType.video) {
 				if connection.isVideoStabilizationSupported {
 					connection.preferredVideoStabilizationMode = .auto
 				}
@@ -782,7 +838,7 @@ open class SwiftyCamViewController: UIViewController {
     }
 
 	fileprivate func getVideoOrientation() -> AVCaptureVideoOrientation {
-		guard shouldUseDeviceOrientation, let deviceOrientation = self.deviceOrientation else { return previewLayer!.videoPreviewLayer.connection.videoOrientation }
+		guard shouldUseDeviceOrientation, let deviceOrientation = self.deviceOrientation else { return previewLayer!.videoPreviewLayer.connection!.videoOrientation }
 
 		switch deviceOrientation {
 		case .landscapeLeft:
@@ -832,11 +888,11 @@ open class SwiftyCamViewController: UIViewController {
 	}
 
 	fileprivate func capturePhotoAsyncronously(completionHandler: @escaping(Bool) -> ()) {
-		if let videoConnection = photoFileOutput?.connection(withMediaType: AVMediaTypeVideo) {
+		if let videoConnection = photoFileOutput?.connection(with: AVMediaType.video) {
 
 			photoFileOutput?.captureStillImageAsynchronously(from: videoConnection, completionHandler: {(sampleBuffer, error) in
 				if (sampleBuffer != nil) {
-					let imageData = AVCaptureStillImageOutput.jpegStillImageNSDataRepresentation(sampleBuffer)
+					let imageData = AVCaptureStillImageOutput.jpegStillImageNSDataRepresentation(sampleBuffer!)
 					let image = self.processPhoto(imageData!)
 
 					// Call delegate and return new image
@@ -855,6 +911,9 @@ open class SwiftyCamViewController: UIViewController {
 
 	/// Handle Denied App Privacy Settings
 
+    /*
+     viewDidAppearで呼び出されている
+     */
 	fileprivate func promptToAppSettings() {
 		// prompt User with UIAlertView
 
@@ -885,30 +944,30 @@ open class SwiftyCamViewController: UIViewController {
 
 	fileprivate func videoInputPresetFromVideoQuality(quality: VideoQuality) -> String {
 		switch quality {
-		case .high: return AVCaptureSessionPresetHigh
-		case .medium: return AVCaptureSessionPresetMedium
-		case .low: return AVCaptureSessionPresetLow
-		case .resolution352x288: return AVCaptureSessionPreset352x288
-		case .resolution640x480: return AVCaptureSessionPreset640x480
-		case .resolution1280x720: return AVCaptureSessionPreset1280x720
-		case .resolution1920x1080: return AVCaptureSessionPreset1920x1080
-		case .iframe960x540: return AVCaptureSessionPresetiFrame960x540
-		case .iframe1280x720: return AVCaptureSessionPresetiFrame1280x720
+		case .high: return AVCaptureSession.Preset.high.rawValue
+		case .medium: return AVCaptureSession.Preset.medium.rawValue
+		case .low: return AVCaptureSession.Preset.low.rawValue
+		case .resolution352x288: return AVCaptureSession.Preset.cif352x288.rawValue
+		case .resolution640x480: return AVCaptureSession.Preset.vga640x480.rawValue
+		case .resolution1280x720: return AVCaptureSession.Preset.hd1280x720.rawValue
+		case .resolution1920x1080: return AVCaptureSession.Preset.hd1920x1080.rawValue
+		case .iframe960x540: return AVCaptureSession.Preset.iFrame960x540.rawValue
+		case .iframe1280x720: return AVCaptureSession.Preset.iFrame1280x720.rawValue
 		case .resolution3840x2160:
 			if #available(iOS 9.0, *) {
-				return AVCaptureSessionPreset3840x2160
+				return AVCaptureSession.Preset.hd4K3840x2160.rawValue
 			}
 			else {
 				print("[SwiftyCam]: Resolution 3840x2160 not supported")
-				return AVCaptureSessionPresetHigh
+				return AVCaptureSession.Preset.high.rawValue
 			}
 		}
 	}
 
 	/// Get Devices
 
-	fileprivate class func deviceWithMediaType(_ mediaType: String, preferringPosition position: AVCaptureDevicePosition) -> AVCaptureDevice? {
-		if let devices = AVCaptureDevice.devices(withMediaType: mediaType) as? [AVCaptureDevice] {
+	fileprivate class func deviceWithMediaType(_ mediaType: String, preferringPosition position: AVCaptureDevice.Position) -> AVCaptureDevice? {
+		if let devices = AVCaptureDevice.devices(for: AVMediaType(rawValue: mediaType)) as? [AVCaptureDevice] {
 			return devices.filter({ $0.position == position }).first
 		}
 		return nil
@@ -916,7 +975,7 @@ open class SwiftyCamViewController: UIViewController {
 
 	/// Enable or disable flash for photo
 
-	fileprivate func changeFlashSettings(device: AVCaptureDevice, mode: AVCaptureFlashMode) {
+	fileprivate func changeFlashSettings(device: AVCaptureDevice, mode: AVCaptureDevice.FlashMode) {
 		do {
 			try device.lockForConfiguration()
 			device.flashMode = mode
@@ -950,17 +1009,17 @@ open class SwiftyCamViewController: UIViewController {
 			return
 		}
 
-		let device = AVCaptureDevice.defaultDevice(withMediaType: AVMediaTypeVideo)
+		let device = AVCaptureDevice.default(for: AVMediaType.video)
 		// Check if device has a flash
 		if (device?.hasTorch)! {
 			do {
 				try device?.lockForConfiguration()
-				if (device?.torchMode == AVCaptureTorchMode.on) {
-					device?.torchMode = AVCaptureTorchMode.off
+				if (device?.torchMode == AVCaptureDevice.TorchMode.on) {
+					device?.torchMode = AVCaptureDevice.TorchMode.off
 					self.isCameraTorchOn = false
 				} else {
 					do {
-						try device?.setTorchModeOnWithLevel(1.0)
+						try device?.setTorchModeOn(level: 1.0)
 						self.isCameraTorchOn = true
 					} catch {
 						print("[SwiftyCam]: \(error)")
@@ -976,18 +1035,42 @@ open class SwiftyCamViewController: UIViewController {
 	/// Sets whether SwiftyCam should enable background audio from other applications or sources
 
 	fileprivate func setBackgroundAudioPreference() {
+        /*
+         /// Set whether SwiftyCam should allow background audio from other applications
+         public var allowBackgroundAudio              = true
+         */
 		guard allowBackgroundAudio == true else {
 			return
 		}
-        
+        /*
+         /// Sets whether or not video recordings will record audio
+         /// Setting to true will prompt user for access to microphone on View Controller launch.
+         public var audioEnabled                   = true
+         */
         guard audioEnabled == true else {
             return
         }
 
+        /*
+         AVAudioSession appとiOSの仲介のオブジェクトで、app内でaudioをどう利用するかの設定をしたりする
+         AVCaptureSessionのAudio版かな。。。
+         setCategoryでapp内でどのようにaudioを使用するかを定義できる
+         AVAudioSessionCategoryPlayAndRecord録音と再生をするように指定
+         → 動画の音声の録音と再生時の出力が可能になる
+         
+         公式ドキュメントに書いてあるようにappの起動時にセットすることがいいっぽい
+         */
 		do{
 			try AVAudioSession.sharedInstance().setCategory(AVAudioSessionCategoryPlayAndRecord,
 			                                                with: [.duckOthers, .defaultToSpeaker])
-
+            
+            /*
+             AVCaptureSessionはaudioSessionの設定を自動的に変更してくれる
+             以下の値がtrueだったら。。。
+             これが良しなに設定してくれるかは定か。。。
+             だからfalseにしてcaptureSessionが変更しないようにしている
+             また、前にsetCategoryした設定が変更されることを防ぐ
+             */
 			session.automaticallyConfiguresApplicationAudioSession = false
 		}
 		catch {
@@ -1007,12 +1090,18 @@ extension SwiftyCamViewController : SwiftyCamButtonDelegate {
 
 	/// Set UITapGesture to take photo
 
+    /*
+     撮影
+     */
 	public func buttonWasTapped() {
 		takePhoto()
 	}
 
 	/// Set UILongPressGesture start to begin video
 
+    /*
+     録画
+     */
 	public func buttonDidBeginLongPress() {
 		startVideoRecording()
 	}
@@ -1037,7 +1126,7 @@ extension SwiftyCamViewController : AVCaptureFileOutputRecordingDelegate {
 
 	/// Process newly captured video and write it to temporary directory
 
-	public func capture(_ captureOutput: AVCaptureFileOutput!, didFinishRecordingToOutputFileAt outputFileURL: URL!, fromConnections connections: [Any]!, error: Error!) {
+	public func fileOutput(_ captureOutput: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
 		if let currentBackgroundRecordingID = backgroundRecordingID {
 			backgroundRecordingID = UIBackgroundTaskInvalid
 
@@ -1048,7 +1137,7 @@ extension SwiftyCamViewController : AVCaptureFileOutputRecordingDelegate {
 		if error != nil {
 			print("[SwiftyCam]: Movie file finishing error: \(error)")
             DispatchQueue.main.async {
-                self.cameraDelegate?.swiftyCam(self, didFailToRecordVideo: error)
+                self.cameraDelegate?.swiftyCam(self, didFailToRecordVideo: error!)
             }
 		} else {
 			//Call delegate function with the URL of the outputfile
@@ -1113,7 +1202,7 @@ extension SwiftyCamViewController {
 					device.focusMode = .autoFocus
 				}
 				device.exposurePointOfInterest = focusPoint
-				device.exposureMode = AVCaptureExposureMode.continuousAutoExposure
+				device.exposureMode = AVCaptureDevice.ExposureMode.continuousAutoExposure
 				device.unlockForConfiguration()
 				//Call delegate function and pass in the location of the touch
 
@@ -1185,6 +1274,10 @@ extension SwiftyCamViewController {
 
 	*/
 
+    /*
+     スワイプなどを有効にしてる
+     viewDidLoadで呼び出されている
+     */
 	fileprivate func addGestureRecognizers() {
 		pinchGesture = UIPinchGestureRecognizer(target: self, action: #selector(zoomGesture(pinch:)))
 		pinchGesture.delegate = self
